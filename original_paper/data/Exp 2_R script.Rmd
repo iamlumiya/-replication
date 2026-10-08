@@ -1,0 +1,910 @@
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Set up
+
+Load the packages:
+
+```{r}
+library(tidyverse)
+library(lme4)
+library(lmerTest)
+library(plotrix)
+library(rempsyc)
+library(emmeans)
+```
+
+Load the data:
+
+```{r}
+full_data <- read_csv("rawdata.csv")
+
+# check the data
+
+full_data
+```
+
+# Exclude the extreme values
+
+Step 1: exclude data below 100 ms or above 5000 ms
+Step 2: exclude data that were over 2.5 standard deviations from the grand mean.
+
+The critical region:
+
+```{r}
+critical_1 <- filter(full_data,
+                     position == "critical")
+
+critical_2 <- filter(critical_1,
+                     RT < 5000 & RT > 100)
+
+data_critical <- filter(critical_2,
+                        RT < mean(RT) + 2.5 * sd(RT) &
+                        RT > mean(RT) - 2.5 * sd(RT))
+```
+
+The spill1 region:
+
+```{r}
+spill1_1 <- filter(full_data,
+                   position == "spill1")
+
+spill1_2 <- filter(spill1_1,
+                   RT < 5000 & RT > 100)
+
+data_spill1 <- filter(spill1_2,
+                      RT < mean(RT) + 2.5 * sd(RT) &
+                      RT > mean(RT) - 2.5 * sd(RT))
+```
+
+The spill2 region:
+
+```{r}
+spill2_1 <- filter(full_data,
+                   position == "spill2")
+
+spill2_2 <- filter(spill2_1,
+                   RT < 5000 & RT > 100)
+
+data_spill2 <- filter(spill2_2,
+                      RT < mean(RT) + 2.5 * sd(RT) &
+                      RT > mean(RT) - 2.5 * sd(RT))
+```
+
+The spill3 region:
+
+```{r}
+spill3_1 <- filter(full_data,
+                   position == "spill3")
+
+spill3_2 <- filter(spill3_1,
+                   RT < 5000 & RT > 100)
+
+data_spill3 <- filter(spill3_2,
+                      RT < mean(RT) + 2.5 * sd(RT) &
+                      RT > mean(RT) - 2.5 * sd(RT))
+```
+
+The spill4 region:
+
+```{r}
+spill4_1 <- filter(full_data,
+                   position == "spill4")
+
+spill4_2 <- filter(spill4_1,
+                   RT < 5000 & RT > 100)
+
+data_spill4 <- filter(spill4_2,
+                      RT < mean(RT) + 2.5 * sd(RT) &
+                      RT > mean(RT) - 2.5 * sd(RT))
+```
+
+The spill5 region:
+
+```{r}
+spill5_1 <- filter(full_data,
+                   position == "spill5")
+
+spill5_2 <- filter(spill5_1,
+                   RT < 5000 & RT > 100)
+
+data_spill5 <- filter(spill5_2,
+                      RT < mean(RT) + 2.5 * sd(RT) &
+                      RT > mean(RT) - 2.5 * sd(RT))
+```
+
+Calculate how many data points have been excluded:
+
+```{r}
+data_1 <- nrow(critical_1) + nrow(spill1_1) +
+  nrow(spill2_1) + nrow(spill3_1) +
+  nrow(spill4_1) + nrow(spill5_1)
+
+data_2 <- nrow(critical_2) + nrow(spill1_2) +
+  nrow(spill2_2) + nrow(spill3_2) +
+  nrow(spill4_2) + nrow(spill5_2)
+
+data_3 <- nrow(data_critical) + nrow(data_spill1) +
+  nrow(data_spill2) + nrow(data_spill3) +
+  nrow(data_spill4) + nrow(data_spill5)
+
+# the number of data points lost in Step 1:
+data_1 - data_2
+
+# the number of data points lost in Step 2:
+data_2 - data_3
+```
+
+# Descriptive statistics
+
+```{r}
+data_final <- dplyr::bind_rows(data_critical,
+                               data_spill1,
+                               data_spill2,
+                               data_spill3,
+                               data_spill4,
+                               data_spill5)
+
+descr<- 
+  data_final %>%
+  group_by(position,context,plausibility) %>%
+  summarise(mean = mean(RT), se = std.error(RT)) %>% 
+  mutate(mean = round(mean, digits = 2),
+         se = round(se, digits = 2),
+         Conditions = str_c(context, "-", plausibility),
+         value = str_c(mean, " ± ", se),
+         position = str_to_title(position),
+         Conditions = str_to_title(Conditions)) %>%
+  ungroup() %>% 
+  select(position, Conditions, value) %>% 
+  pivot_wider(names_from = position,
+              values_from = value)
+descr <- nice_table(descr)
+print(descr, preview ="docx")
+
+```
+
+# Plot
+
+```{r}
+plot_data <- data_final %>%
+  group_by(position,context,plausibility) %>%
+  summarise(mean = mean(RT), se = std.error(RT)) %>% 
+  mutate(conditions = str_c(context, "-", plausibility),
+         positions = ifelse(position == "critical", '1',
+                     ifelse(position == "spill1", '2',
+                     ifelse(position == "spill2", '3',
+                     ifelse(position == "spill3", '4',
+                     ifelse(position == "spill4", '5', '6')))))) %>% 
+  ungroup() %>% 
+  select(positions, conditions, mean, se)
+
+plot_data$positions <- as.numeric(plot_data$positions)
+plot_data$conditions <- factor(plot_data$conditions,
+                               levels = c("realistic-plausible",
+                                          "realistic-implausible",
+                                          "unrealistic-plausible",
+                                          "unrealistic-implausible"))
+
+plot1 <- ggplot(data = plot_data, 
+                mapping = aes(x = positions, 
+                              y = mean, 
+                              linetype = conditions,
+                              color = conditions)) +
+  geom_point(size = 3) +
+  geom_line(linewidth = 1.3) +
+  theme_classic() +
+  theme(panel.grid = element_blank()) +
+  xlab(NULL) +
+  ylab("Reading times (ms)") +
+  scale_x_continuous(breaks = seq(1, 6, by = 1),
+                     labels = c("critical",
+                                "spillover1",
+                                "spillover2",
+                                "spillover3",
+                                "spillover4",
+                                "spillover5"))+
+  scale_y_continuous(breaks = seq(0, 340, by = 20)) +
+  theme(axis.text.x = element_text(size = 18,face = "bold",color="black")) +
+  theme(axis.text.y = element_text(size = 18,face = "bold",color="black")) +
+  theme(axis.title.y = element_text(size = 18,face = "bold",color="black")) +
+  theme(text = element_text(family = "serif"))+
+  theme(legend.title = element_text(size = 18,face = "bold"),
+        legend.text = element_text(size = 18,face = "bold")) +
+  guides(fill = guide_legend(keywidth = 1, keyheight = 2),
+    linetype=guide_legend(keywidth = 3.6, keyheight = 2),
+    colour=guide_legend(keywidth = 3.6, keyheight = 2)) +
+  geom_errorbar(aes(ymin = mean-1.96*se,
+                    ymax = mean+1.96*se),
+                width = .1,
+                linewidth = 1.3) +
+  scale_color_manual(values = c('black','black','darkgrey','darkgrey'))+
+  scale_linetype_manual(values = c (1,2,1,2))
+
+ggsave("Exp 2.tiff", plot1, width = 12, height = 7, dpi = 600)
+
+```
+
+
+# LMM analysis
+## Critical region
+
+Prepare the data for lmm analysis:
+
+```{r}
+data_critical$context <- as.factor(data_critical$context)
+data_critical$context <- relevel(data_critical$context, ref = "realistic")
+contrasts(data_critical$context) <- c(-0.5,0.5)
+
+data_critical$plausibility <- as.factor(data_critical$plausibility)
+data_critical$plausibility <- relevel(data_critical$plausibility, ref = "plausible")
+contrasts(data_critical$plausibility) <- c(-0.5,0.5)
+
+data_critical$subject <- as.factor(data_critical$subject)
+data_critical$item <- as.factor(data_critical$item)
+data_critical$RT <- as.numeric(data_critical$RT)
+
+data_critical <- data_critical %>%  
+  mutate(z_CL = scale(CL)) %>% 
+  select(subject, item, context, plausibility, z_CL, RT)
+```
+
+Fit the models:
+
+```{r}
+critical_mdl01 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context * plausibility | item) +
+                       (1 + context * plausibility * z_CL | subject),
+                       data = data_critical,
+                       control = lmerControl(optimizer = "bobyqa",
+                                              optCtrl = list(maxfun = 1e6)))
+summary(critical_mdl01)$varcor
+
+critical_mdl02 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context * plausibility || item) +
+                       (1 + context * plausibility * z_CL || subject),
+                       data = data_critical,
+                       control = lmerControl(optimizer = 'bobyqa',
+                                             optCtrl = list(maxfun = 1e6)))
+summary(critical_mdl02)$varcor
+
+critical_mdl03 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context * plausibility || item) +
+                       (1 + context * plausibility || subject),
+                       data = data_critical,
+                       control = lmerControl(optimizer = 'bobyqa',
+                                             optCtrl = list(maxfun = 1e6)))
+summary(critical_mdl03)$varcor
+
+critical_mdl04 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context + plausibility || item) +
+                       (1 + context * plausibility || subject),
+                       data = data_critical,
+                       control = lmerControl(optimizer = 'bobyqa',
+                                             optCtrl = list(maxfun = 1e6)))
+summary(critical_mdl04)$varcor
+
+critical_mdl05 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + plausibility || item) +
+                       (1 + context + plausibility || subject),
+                       data = data_critical,
+                       control = lmerControl(optimizer = 'bobyqa',
+                                             optCtrl = list(maxfun = 1e6)))
+summary(critical_mdl05)$varcor
+
+critical_mdl06 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + plausibility || item) +
+                       (1 + plausibility || subject),
+                       data = data_critical,
+                       control = lmerControl(optimizer = 'bobyqa',
+                                             optCtrl = list(maxfun = 1e6)))
+
+critical_mdl07 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 | item) +
+                       (1 + plausibility || subject),
+                       data = data_critical,
+                       control = lmerControl(optimizer = 'bobyqa',
+                                             optCtrl = list(maxfun = 1e6)))
+summary(critical_mdl07)$varcor
+
+critical_mdl08 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 | item) +
+                       (1 | subject),
+                       data = data_critical,
+                       control = lmerControl(optimizer = 'bobyqa',
+                                             optCtrl = list(maxfun = 1e6)))
+summary(critical_mdl08)
+
+```
+
+## Spill1 region
+
+Prepare the data for lmm analysis:
+
+```{r}
+data_spill1$context <- as.factor(data_spill1$context)
+data_spill1$context <- relevel(data_spill1$context, ref = "realistic")
+contrasts(data_spill1$context) <- c(-0.5,0.5)
+
+data_spill1$plausibility <- as.factor(data_spill1$plausibility)
+data_spill1$plausibility <- relevel(data_spill1$plausibility, ref = "plausible")
+contrasts(data_spill1$plausibility) <- c(-0.5,0.5)
+
+data_spill1$subject <- as.factor(data_spill1$subject)
+data_spill1$item <- as.factor(data_spill1$item)
+data_spill1$RT <- as.numeric(data_spill1$RT)
+
+data_spill1 <- data_spill1 %>%  
+  mutate(z_CL = scale(CL)) %>% 
+  select(subject, item, context, plausibility, z_CL, RT)
+
+```
+
+Fit the models:
+
+```{r}
+spill1_mdl01 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context * plausibility | item) +
+                       (1 + context * plausibility * z_CL | subject),
+                       data = data_spill1,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill1_mdl01)$varcor
+
+spill1_mdl02 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context * plausibility || item) +
+                       (1 + context * plausibility * z_CL || subject),
+                       data = data_spill1,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill1_mdl02)$varcor
+
+spill1_mdl03 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context * plausibility || item) +
+                       (1 + context * plausibility || subject),
+                       data = data_spill1,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill1_mdl03)$varcor
+
+spill1_mdl04 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context + plausibility || item) +
+                       (1 + context + plausibility || subject),
+                       data = data_spill1,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill1_mdl04)$varcor
+
+spill1_mdl05 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context + plausibility || item) +
+                       (1 + context || subject),
+                       data = data_spill1,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill1_mdl05)$varcor
+
+spill1_mdl06 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context || item) +
+                       (1 + context || subject),
+                       data = data_spill1,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill1_mdl06)$varcor
+
+spill1_mdl07 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 | item) +
+                       (1 + context || subject),
+                       data = data_spill1,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill1_mdl07)$varcor
+
+spill1_mdl08 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 | item) +
+                       (1 | subject),
+                       data = data_spill1,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+
+summary(spill1_mdl08)
+
+spill1_results <- as.data.frame(summary(spill1_mdl08)$coefficients)
+spill1_CI <- confint(spill1_mdl08)
+spill1_results <- cbind(spill1_results, spill1_CI[4:11,])
+spill1_results <- tibble::rownames_to_column(spill1_results,"Fixed effects")
+names(spill1_results) <- c("Fixed effects",
+                           "β", "SE", "df",
+                           "t", "p", "CI_lower", "CI_upper")
+spill1_results <- spill1_results %>%
+  mutate(p = p.adjust(p, method="bonferroni")) %>% 
+  select("Fixed effects",
+         "β", "SE", "t",
+         "p", "CI_lower", "CI_upper")
+
+spill1_results <- nice_table(spill1_results)
+
+```
+
+## Spill2 region
+
+Prepare the data for lmm analysis:
+
+```{r}
+data_spill2$context <- as.factor(data_spill2$context)
+data_spill2$context <- relevel(data_spill2$context, ref = "realistic")
+contrasts(data_spill2$context) <- c(-0.5,0.5)
+
+data_spill2$plausibility <- as.factor(data_spill2$plausibility)
+data_spill2$plausibility <- relevel(data_spill2$plausibility, ref = "plausible")
+contrasts(data_spill2$plausibility) <- c(-0.5,0.5)
+
+data_spill2$subject <- as.factor(data_spill2$subject)
+data_spill2$item <- as.factor(data_spill2$item)
+data_spill2$RT <- as.numeric(data_spill2$RT)
+
+data_spill2 <- data_spill2 %>%  
+  mutate(z_CL = scale(CL)) %>% 
+  select(subject, item, context, plausibility, z_CL, RT)
+```
+
+Fit the models:
+
+```{r}
+spill2_mdl01 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context * plausibility | item) +
+                       (1 + context * plausibility * z_CL | subject),
+                       data = data_spill2,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill2_mdl01)$varcor
+
+spill2_mdl02 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context * plausibility || item) +
+                       (1 + context * plausibility * z_CL || subject),
+                       data = data_spill2,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill2_mdl02)$varcor
+
+spill2_mdl03 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context * plausibility || item) +
+                       (1 + context * plausibility || subject),
+                       data = data_spill2,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill2_mdl03)$varcor
+
+spill2_mdl04 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context + plausibility || item) +
+                       (1 + context + plausibility || subject),
+                       data = data_spill2,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill2_mdl04)$varcor
+
+spill2_mdl05 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context + plausibility || item) +
+                       (1 + plausibility || subject),
+                       data = data_spill2,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill2_mdl05)$varcor
+
+spill2_mdl06 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context + plausibility | item) +
+                       (1 + plausibility | subject),
+                       data = data_spill2,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill2_mdl06)$varcor
+
+spill2_mdl07 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context + plausibility | item) +
+                       (1 | subject),
+                       data = data_spill2,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill2_mdl07)$varcor
+
+spill2_mdl08 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + plausibility | item) +
+                       (1 | subject),
+                       data = data_spill2)
+summary(spill2_mdl08)
+
+spill2_results <- as.data.frame(summary(spill2_mdl08)$coefficients)
+spill2_CI <- confint(spill2_mdl08)
+spill2_results <- cbind(spill2_results, spill2_CI[4:11,])
+spill2_results <- tibble::rownames_to_column(spill2_results,"Fixed effects")
+names(spill2_results) <- c("Fixed effects",
+                           "β", "SE", "df",
+                           "t", "p", "CI_lower", "CI_upper")
+spill2_results <- spill2_results %>%
+  mutate(p = p.adjust(p, method="bonferroni")) %>% 
+  select("Fixed effects",
+         "β", "SE", "t",
+         "p", "CI_lower", "CI_upper")
+
+spill2_results <- nice_table(spill2_results)
+print(spill2_results, preview ="docx")
+
+data_spill2 %>% group_by(plausibility) %>% 
+  summarise(mean(RT))
+
+```
+
+
+## Spill3 region
+
+Prepare the data for lmm analysis:
+
+```{r}
+data_spill3$context <- as.factor(data_spill3$context)
+data_spill3$context <- relevel(data_spill3$context, ref = "realistic")
+contrasts(data_spill3$context) <- c(-0.5,0.5)
+
+data_spill3$plausibility <- as.factor(data_spill3$plausibility)
+data_spill3$plausibility <- relevel(data_spill3$plausibility, ref = "plausible")
+contrasts(data_spill3$plausibility) <- c(-0.5,0.5)
+
+data_spill3$subject <- as.factor(data_spill3$subject)
+data_spill3$item <- as.factor(data_spill3$item)
+data_spill3$RT <- as.numeric(data_spill3$RT)
+
+data_spill3 <- data_spill3 %>%  
+  mutate(z_CL = scale(CL)) %>% 
+  select(subject, item, context, plausibility, z_CL, RT)
+```
+
+Fit the models:
+
+```{r}
+spill3_mdl01 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context * plausibility | item) +
+                       (1 + context * plausibility * z_CL | subject),
+                       data = data_spill3,
+                       control = lmerControl(optimizer = 'bobyqa',
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill3_mdl01)$varcor
+
+spill3_mdl02 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context * plausibility || item) +
+                       (1 + context * plausibility * z_CL || subject),
+                       data = data_spill3,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill3_mdl02)$varcor
+
+spill3_mdl03 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context * plausibility || item) +
+                       (1 + context * plausibility || subject),
+                       data = data_spill3,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill3_mdl03)$varcor
+
+spill3_mdl04 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context + plausibility || item) +
+                       (1 + context + plausibility || subject),
+                       data = data_spill3,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill3_mdl04)$varcor
+
+spill3_mdl05 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context + plausibility | item) +
+                       (1 + context + plausibility | subject),
+                       data = data_spill3,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill3_mdl05)$varcor
+
+spill3_mdl06 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context + plausibility | item) +
+                       (1 + context | subject),
+                       data = data_spill3,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill3_mdl06)$varcor
+
+spill3_mdl07 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context | item) +
+                       (1 + context | subject),
+                       data = data_spill3,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill3_mdl07)$varcor
+
+spill3_mdl08 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 | item) +
+                       (1 + context | subject),
+                       data = data_spill3,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill3_mdl08)$varcor
+
+spill3_mdl09 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 | item) +
+                       (1 | subject),
+                       data = data_spill3,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill3_mdl09)
+
+spill3_results <- as.data.frame(summary(spill3_mdl09)$coefficients)
+spill3_CI <- confint(spill3_mdl09)
+spill3_results <- cbind(spill3_results, spill3_CI[4:11,])
+spill3_results <- tibble::rownames_to_column(spill3_results,"Fixed effects")
+names(spill3_results) <- c("Fixed effects",
+                           "β", "SE", "df",
+                           "t", "p", "CI_lower", "CI_upper")
+spill3_results <- spill3_results %>%
+  mutate(p = p.adjust(p, method="bonferroni")) %>% 
+  select("Fixed effects",
+         "β", "SE", "t",
+         "p", "CI_lower", "CI_upper")
+
+spill3_results <- nice_table(spill3_results)
+print(spill3_results, preview ="docx")
+
+data_spill3 %>% group_by(plausibility) %>% 
+  summarise(mean(RT))
+```
+
+## Spill4 region
+
+Prepare the data for lmm analysis:
+
+```{r}
+data_spill4$context <- as.factor(data_spill4$context)
+data_spill4$context <- relevel(data_spill4$context, ref = "realistic")
+contrasts(data_spill4$context) <- c(-0.5,0.5)
+
+data_spill4$plausibility <- as.factor(data_spill4$plausibility)
+data_spill4$plausibility <- relevel(data_spill4$plausibility, ref = "plausible")
+contrasts(data_spill4$plausibility) <- c(-0.5,0.5)
+
+data_spill4$subject <- as.factor(data_spill4$subject)
+data_spill4$item <- as.factor(data_spill4$item)
+data_spill4$RT <- as.numeric(data_spill4$RT)
+
+data_spill4 <- data_spill4 %>%  
+  mutate(z_CL = scale(CL)) %>% 
+  select(subject, item, context, plausibility, z_CL, RT)
+```
+
+Fit the models:
+
+```{r}
+spill4_mdl01 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context * plausibility | item) +
+                       (1 + context * plausibility * z_CL | subject),
+                       data = data_spill4,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill4_mdl01)$varcor
+
+spill4_mdl02 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context * plausibility || item) +
+                       (1 + context * plausibility * z_CL || subject),
+                       data = data_spill4,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill4_mdl02)$varcor
+
+spill4_mdl03 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context * plausibility || item) +
+                       (1 + context * plausibility || subject),
+                       data = data_spill4,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill4_mdl03)$varcor
+
+spill4_mdl04 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context + plausibility || item) +
+                       (1 + context + plausibility || subject),
+                       data = data_spill4,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill4_mdl04)$varcor
+
+spill4_mdl05 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context + plausibility | item) +
+                       (1 + context + plausibility | subject),
+                       data = data_spill4,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill4_mdl05)$varcor
+
+spill4_mdl05 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context + plausibility | item) +
+                       (1 + context | subject),
+                       data = data_spill4,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill4_mdl05)$varcor
+
+spill4_mdl06 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context + plausibility | item) +
+                       (1 | subject),
+                       data = data_spill4,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill4_mdl06)
+
+spill4_results <- as.data.frame(summary(spill4_mdl06)$coefficients)
+spill4_CI <- confint(spill4_mdl06)
+spill4_results <- cbind(spill4_results, spill4_CI[4:11,])
+spill4_results <- tibble::rownames_to_column(spill4_results,"Fixed effects")
+names(spill4_results) <- c("Fixed effects",
+                           "β", "SE", "df",
+                           "t", "p", "CI_lower", "CI_upper")
+spill4_results <- spill4_results %>%
+  mutate(p = p.adjust(p, method="bonferroni")) %>% 
+  select("Fixed effects",
+         "β", "SE", "t",
+         "p", "CI_lower", "CI_upper")
+
+spill4_results <- nice_table(spill4_results)
+print(spill4_results, preview ="docx")
+```
+
+Resolve the significant interaction:
+
+```{r}
+spill4_emm1 <- emmeans(spill4_mdl06,"plausibility",
+                by = c("context"),
+                lmer.df="satterthwaite",
+                adjust="bonferroni")
+spill4_cont1 <- as.data.frame(contrast(spill4_emm1,"tukey"))
+spill4_cont1
+
+spill4_emm2 <- emmeans(spill4_mdl06,"context",
+                by = c("plausibility"),
+                lmer.df="satterthwaite",
+                adjust="bonferroni")
+spill4_cont2 <- as.data.frame(contrast(spill4_emm2,"tukey"))
+spill4_cont2
+
+data_spill4 %>% group_by(context,plausibility) %>% 
+  summarise(mean(RT))
+
+```
+
+
+## Spill5 region
+
+Prepare the data for lmm analysis:
+
+```{r}
+data_spill5$context <- as.factor(data_spill5$context)
+data_spill5$context <- relevel(data_spill5$context, ref = "realistic")
+contrasts(data_spill5$context) <- c(-0.5,0.5)
+
+data_spill5$plausibility <- as.factor(data_spill5$plausibility)
+data_spill5$plausibility <- relevel(data_spill5$plausibility, ref = "plausible")
+contrasts(data_spill5$plausibility) <- c(-0.5,0.5)
+
+data_spill5$subject <- as.factor(data_spill5$subject)
+data_spill5$item <- as.factor(data_spill5$item)
+data_spill5$RT <- as.numeric(data_spill5$RT)
+
+data_spill5 <- data_spill5 %>%  
+  mutate(z_CL = scale(CL)) %>% 
+  select(subject, item, context, plausibility, z_CL, RT)
+```
+
+Fit the models:
+
+```{r}
+spill5_mdl01 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context * plausibility | item) +
+                       (1 + context * plausibility * z_CL | subject),
+                       data = data_spill5,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill5_mdl01)$varcor
+
+spill5_mdl02 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context * plausibility || item) +
+                       (1 + context * plausibility * z_CL || subject),
+                       data = data_spill5,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill5_mdl02)$varcor
+
+spill5_mdl03 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context * plausibility || item) +
+                       (1 + context * plausibility || subject),
+                       data = data_spill5,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill5_mdl03)$varcor
+
+spill5_mdl04 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context * plausibility || item) +
+                       (1 + context + plausibility || subject),
+                       data = data_spill5,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill5_mdl04)$varcor
+
+spill5_mdl05 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context + plausibility | item) +
+                       (1 + context + plausibility | subject),
+                       data = data_spill5,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill5_mdl05)$varcor
+
+spill5_mdl06 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context + plausibility | item) +
+                       (1 + plausibility | subject),
+                       data = data_spill5,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill5_mdl06)$varcor
+
+spill5_mdl07 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 + context | item) +
+                       (1 + plausibility | subject),
+                       data = data_spill5,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill5_mdl07)$varcor
+
+spill5_mdl08 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 | item) +
+                       (1 + plausibility | subject),
+                       data = data_spill5,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill5_mdl08)$varcor
+
+spill5_mdl09 <- lmer(log(RT) ~ 1 + context * plausibility * z_CL +
+                       (1 | item) +
+                       (1 | subject),
+                       data = data_spill5,
+                       control = lmerControl(optimizer = "bobyqa",
+                                             optCtrl=list(maxfun = 1e6)))
+summary(spill5_mdl09)
+
+spill5_results <- as.data.frame(summary(spill5_mdl09)$coefficients)
+spill5_CI <- confint(spill5_mdl09)
+spill5_results <- cbind(spill5_results, spill5_CI[4:11,])
+spill5_results <- tibble::rownames_to_column(spill5_results,"Fixed effects")
+names(spill5_results) <- c("Fixed effects",
+                           "β", "SE", "df",
+                           "t", "p", "CI_lower", "CI_upper")
+spill5_results <- spill5_results %>%
+  mutate(p = p.adjust(p, method="bonferroni")) %>% 
+  select("Fixed effects",
+         "β", "SE", "t",
+         "p", "CI_lower", "CI_upper")
+
+spill5_results <- nice_table(spill5_results)
+print(spill5_results, preview ="docx")
+```
+
+Resolve the significant interaction:
+
+```{r}
+spill5_emm1 <- emmeans(spill5_mdl09,"plausibility",
+                by = c("context"),
+                lmer.df="satterthwaite",
+                adjust="bonferroni")
+spill5_cont1 <- as.data.frame(contrast(spill5_emm1,"tukey"))
+spill5_cont1
+
+spill5_emm2 <- emmeans(spill5_mdl09,"context",
+                by = c("plausibility"),
+                lmer.df="satterthwaite",
+                adjust="bonferroni")
+spill5_cont2 <- as.data.frame(contrast(spill5_emm2,"tukey"))
+spill5_cont2
+
+data_spill5 %>% group_by(context,plausibility) %>% 
+  summarise(mean(RT))
+```
