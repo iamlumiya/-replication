@@ -17,7 +17,7 @@ My current research investigates how comprehenders use grammatical cues and worl
 [Implementation and Challenges]
 The original experiment was conducted online using PCIbex and the authors shared the stimulus lists and analysis scripts. However, I have not located the original experiment code and used PICbex before. I therefore plan to implement the task in jsPsych while preserving the original stimuli, word-by-word presentation, response procedure, counterbalancing, and trial-order constraints as closely as possible. Recreating the task in Javascript will be a methodological challenge, as my programming experience is primarily in Python, but it will also provide an opportunity to develop skills for future online experiments. Additional challenges include verifying the accuracy of recorded reading times and recruiting a sufficient sample of eligible participants through SONA.
 
-
+https://github.com/iamlumiya/-replication.git
 
 ## Methods
 
